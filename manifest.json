@@ -1,0 +1,25 @@
+{
+  "name": "요리 타이머",
+  "short_name": "요리타이머",
+  "description": "요리용 카운트다운 타이머와 간격 알림",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1e1b18",
+  "theme_color": "#1e1b18",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
