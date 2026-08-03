@@ -78,6 +78,7 @@
     font-size: 16px;
     color: #a89787;
     margin-bottom: 10px;
+    white-space: nowrap;
   }
   .field input {
     width: 100%;
@@ -95,10 +96,94 @@
     -webkit-appearance: none;
     margin: 0;
   }
+  .section-label {
+    font-size: 16px;
+    color: #a89787;
+    margin: 4px 0 12px;
+  }
+  .stage-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .stage-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #2a2521;
+    border-radius: 18px;
+    padding: 12px 14px;
+  }
+  .stage-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #4a423a;
+    color: #e8b96a;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .stage-field {
+    flex: 1;
+    min-width: 0;
+  }
+  .stage-field label {
+    display: block;
+    font-size: 12px;
+    color: #a89787;
+    margin-bottom: 4px;
+    white-space: nowrap;
+  }
+  .stage-field input {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #f4ede4;
+    font-size: 22px;
+    font-weight: 700;
+    outline: none;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+  }
+  .stage-field input::-webkit-outer-spin-button,
+  .stage-field input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .stage-remove {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #4a423a;
+    color: #d99a9a;
+    border: none;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+  }
+  .add-stage {
+    width: 100%;
+    background: none;
+    border: 2px dashed #4a423a;
+    color: #c9b8a3;
+    border-radius: 18px;
+    padding: 14px 0;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 20px;
+  }
   .buttons {
     display: flex;
     gap: 14px;
-    margin-top: 24px;
+    margin-top: 4px;
   }
   button {
     flex: 1;
@@ -138,11 +223,11 @@
       <label>초</label>
       <input type="number" id="secInput" min="0" max="59" value="0">
     </div>
-    <div class="field">
-      <label>알림 간격(초)</label>
-      <input type="number" id="intervalInput" min="1" max="60" value="30">
-    </div>
   </div>
+
+  <div class="section-label">알림 간격 (순서대로 반복돼요)</div>
+  <div class="stage-list" id="stageList"></div>
+  <button class="add-stage" id="addStageBtn">+ 알림 간격 추가</button>
 
   <div class="buttons">
     <button class="start" id="startBtn">시작</button>
@@ -156,17 +241,24 @@
 <script>
 let totalSeconds = 300;
 let remaining = 300;
-let intervalSec = 30;
-let subCountdown = 30;
 let timerId = null;
 let running = false;
+
+// stages: [{interval: seconds, count: times to ring}]
+let stages = [
+  { interval: 30, count: 4 }
+];
+let stageIndex = 0;
+let ringInStage = 0;
+let subCountdown = 30;
 
 const display = document.getElementById('display');
 const subCount = document.getElementById('subCount');
 const status = document.getElementById('status');
 const minInput = document.getElementById('minInput');
 const secInput = document.getElementById('secInput');
-const intervalInput = document.getElementById('intervalInput');
+const stageListEl = document.getElementById('stageList');
+const addStageBtn = document.getElementById('addStageBtn');
 const startBtn = document.getElementById('startBtn');
 const pauseBtn = document.getElementById('pauseBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -220,16 +312,95 @@ function finalBeep() {
   setTimeout(() => playBeep(880, 0.5), 600);
 }
 
+// ---- Stage list rendering ----
+function renderStages() {
+  stageListEl.innerHTML = '';
+  stages.forEach((stage, idx) => {
+    const row = document.createElement('div');
+    row.className = 'stage-row';
+
+    const num = document.createElement('div');
+    num.className = 'stage-num';
+    num.textContent = idx + 1;
+    row.appendChild(num);
+
+    const intervalField = document.createElement('div');
+    intervalField.className = 'stage-field';
+    intervalField.innerHTML = `<label>간격(초)</label>`;
+    const intervalInput = document.createElement('input');
+    intervalInput.type = 'number';
+    intervalInput.min = '1';
+    intervalInput.max = '600';
+    intervalInput.value = stage.interval;
+    intervalInput.addEventListener('change', () => {
+      if (running) return;
+      let v = parseInt(intervalInput.value) || 1;
+      v = Math.min(600, Math.max(1, v));
+      intervalInput.value = v;
+      stages[idx].interval = v;
+      syncSubCountdownIfIdle();
+    });
+    intervalField.appendChild(intervalInput);
+    row.appendChild(intervalField);
+
+    const countField = document.createElement('div');
+    countField.className = 'stage-field';
+    countField.innerHTML = `<label>반복 횟수</label>`;
+    const countInput = document.createElement('input');
+    countInput.type = 'number';
+    countInput.min = '1';
+    countInput.max = '999';
+    countInput.value = stage.count;
+    countInput.addEventListener('change', () => {
+      if (running) return;
+      let v = parseInt(countInput.value) || 1;
+      v = Math.min(999, Math.max(1, v));
+      countInput.value = v;
+      stages[idx].count = v;
+    });
+    countField.appendChild(countInput);
+    row.appendChild(countField);
+
+    if (stages.length > 1) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'stage-remove';
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', () => {
+        if (running) return;
+        stages.splice(idx, 1);
+        renderStages();
+        syncSubCountdownIfIdle();
+      });
+      row.appendChild(removeBtn);
+    }
+
+    stageListEl.appendChild(row);
+  });
+}
+
+function syncSubCountdownIfIdle() {
+  if (running) return;
+  stageIndex = 0;
+  ringInStage = 0;
+  subCountdown = stages[0] ? stages[0].interval : 30;
+  updateDisplay();
+}
+
+addStageBtn.addEventListener('click', () => {
+  if (running) return;
+  const last = stages[stages.length - 1];
+  stages.push({ interval: last ? last.interval : 30, count: last ? last.count : 1 });
+  renderStages();
+});
+
 function readInputs() {
   const m = parseInt(minInput.value) || 0;
   const s = parseInt(secInput.value) || 0;
-  let iv = parseInt(intervalInput.value) || 30;
-  iv = Math.min(60, Math.max(1, iv));
-  intervalInput.value = iv;
   totalSeconds = m * 60 + s;
   remaining = totalSeconds;
-  intervalSec = iv;
-  subCountdown = iv;
+  stageIndex = 0;
+  ringInStage = 0;
+  subCountdown = stages[0] ? stages[0].interval : 30;
   updateDisplay();
 }
 
@@ -243,11 +414,20 @@ function tick() {
     return;
   }
   remaining -= 1;
-  subCountdown -= 1;
-  if (subCountdown <= 0) {
-    subCountdown = intervalSec;
-    if (remaining > 0) shortBeep();
+
+  if (stages.length > 0) {
+    subCountdown -= 1;
+    if (subCountdown <= 0) {
+      if (remaining > 0) shortBeep();
+      ringInStage += 1;
+      if (ringInStage >= stages[stageIndex].count) {
+        stageIndex = (stageIndex + 1) % stages.length;
+        ringInStage = 0;
+      }
+      subCountdown = stages[stageIndex].interval;
+    }
   }
+
   updateDisplay();
 }
 
@@ -255,7 +435,11 @@ function setUIState() {
   startBtn.disabled = running;
   minInput.disabled = running;
   secInput.disabled = running;
-  intervalInput.disabled = running;
+  addStageBtn.disabled = running;
+  addStageBtn.style.opacity = running ? '0.5' : '1';
+  stageListEl.querySelectorAll('input, button').forEach(el => {
+    el.disabled = running;
+  });
 }
 
 startBtn.addEventListener('click', () => {
@@ -290,17 +474,8 @@ resetBtn.addEventListener('click', () => {
   setUIState();
 });
 
+renderStages();
 readInputs();
-
-intervalInput.addEventListener('change', () => {
-  if (running) return;
-  let iv = parseInt(intervalInput.value) || 30;
-  iv = Math.min(60, Math.max(1, iv));
-  intervalInput.value = iv;
-  intervalSec = iv;
-  subCountdown = iv;
-  updateDisplay();
-});
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
